@@ -1,0 +1,23 @@
+services:
+  # El servidor oficial de la arena
+  servidor:
+    image: lrprll/connect6-server:latest
+    ports:
+      - "8080:8080"
+    networks:
+      - game-network
+
+  # Tu agente de C++
+  mi-ia:
+    build: .
+    environment:
+      - SERVER_ADDR=servidor:50051
+      - TEAM_NAME=Gabriel_USB_Bot
+    depends_on:
+      - servidor
+    networks:
+      - game-network
+
+networks:
+  game-network:
+    driver: bridge
