@@ -47,7 +47,7 @@ bool in_bounds(int x, int y) {
     return x >= 0 && x < 19 && y >= 0 && y < 19;
 }
 
-bool is_empty(Board board, int x, int y) {
+bool isCellEmpty(Board board, int x, int y) {
     return in_bounds(x, y) && board[x][y] == 0;
 }
 
@@ -79,7 +79,7 @@ void sync_board(const connect6::GameState& state, Board local_board) {
     }
 }
 
-bool board_is_empty(Board board) {
+bool board_isCellEmpty(Board board) {
     for (int x = 0; x < 19; ++x) {
         for (int y = 0; y < 19; ++y) {
             if (board[x][y] != 0) return false;
@@ -135,7 +135,7 @@ vector<Pos> get_candidates(Board board) {
     vector<Pos> candidates;
     bool visited[19][19] = {false};
 
-    if (board_is_empty(board)) {
+    if (board_isCellEmpty(board)) {
         for (int x = 8; x <= 10; ++x) {
             for (int y = 8; y <= 10; ++y) {
                 candidates.push_back({x, y});
@@ -201,7 +201,7 @@ vector<Pos> find_immediate_winning_cells(Board board, const vector<Pos>& candida
     vector<Pos> wins;
 
     for (const auto& p : candidates) {
-        if (!is_empty(board, p.x, p.y)) continue;
+        if (!isCellEmpty(board, p.x, p.y)) continue;
 
         place_stone(board, p.x, p.y, who);
         bool win = check_win_from(board, p.x, p.y, who) || has_win(board, who);
@@ -218,12 +218,12 @@ vector<pair<Pos, Pos>> find_immediate_winning_pairs(Board board, const vector<Po
     size_t n = min(candidates.size(), limit);
 
     for (size_t i = 0; i < n; ++i) {
-        if (!is_empty(board, candidates[i].x, candidates[i].y)) continue;
+        if (!isCellEmpty(board, candidates[i].x, candidates[i].y)) continue;
 
         place_stone(board, candidates[i].x, candidates[i].y, who);
 
         for (size_t j = i + 1; j < n; ++j) {
-            if (!is_empty(board, candidates[j].x, candidates[j].y)) continue;
+            if (!isCellEmpty(board, candidates[j].x, candidates[j].y)) continue;
 
             place_stone(board, candidates[j].x, candidates[j].y, who);
             bool win = has_win(board, who);
@@ -357,8 +357,8 @@ int alphabeta(Board board,
         int best = -1000000000;
 
         for (const auto& m : moves) {
-            if (!is_empty(board, m.p1.x, m.p1.y)) continue;
-            if (!m.single_stone && !is_empty(board, m.p2.x, m.p2.y)) continue;
+            if (!isCellEmpty(board, m.p1.x, m.p1.y)) continue;
+            if (!m.single_stone && !isCellEmpty(board, m.p2.x, m.p2.y)) continue;
             if (!m.single_stone && same_pos(m.p1, m.p2)) continue;
 
             place_stone(board, m.p1.x, m.p1.y, 1);
@@ -380,8 +380,8 @@ int alphabeta(Board board,
         int best = 1000000000;
 
         for (const auto& m : moves) {
-            if (!is_empty(board, m.p1.x, m.p1.y)) continue;
-            if (!m.single_stone && !is_empty(board, m.p2.x, m.p2.y)) continue;
+            if (!isCellEmpty(board, m.p1.x, m.p1.y)) continue;
+            if (!m.single_stone && !isCellEmpty(board, m.p2.x, m.p2.y)) continue;
             if (!m.single_stone && same_pos(m.p1, m.p2)) continue;
 
             place_stone(board, m.p1.x, m.p1.y, 2);
@@ -450,7 +450,7 @@ MovePair choose_move(Board board, int stones_required) {
             Pos best_second = {-1, -1};
 
             for (const auto& p : candidates) {
-                if (!is_empty(board, p.x, p.y)) continue;
+                if (!isCellEmpty(board, p.x, p.y)) continue;
                 if (same_pos(p, p1)) continue;
 
                 int score = count_blocked_pairs_by_two_stones(p1, p, opp_pairs);
@@ -462,7 +462,7 @@ MovePair choose_move(Board board, int stones_required) {
 
             if (best_second.x == -1) {
                 for (const auto& p : candidates) {
-                    if (!is_empty(board, p.x, p.y)) continue;
+                    if (!isCellEmpty(board, p.x, p.y)) continue;
                     if (!same_pos(p, p1)) {
                         best_second = p;
                         break;
@@ -482,7 +482,7 @@ MovePair choose_move(Board board, int stones_required) {
             Pos best_block = candidates[0];
 
             for (const auto& p : candidates) {
-                if (!is_empty(board, p.x, p.y)) continue;
+                if (!isCellEmpty(board, p.x, p.y)) continue;
 
                 int score = count_blocked_pairs_by_one_stone(p, opp_pairs);
                 if (score > best_score) {
@@ -498,7 +498,7 @@ MovePair choose_move(Board board, int stones_required) {
 
             auto combos = generate_move_combinations(candidates, 2, 14);
             for (const auto& m : combos) {
-                if (!is_empty(board, m.p1.x, m.p1.y) || !is_empty(board, m.p2.x, m.p2.y)) continue;
+                if (!isCellEmpty(board, m.p1.x, m.p1.y) || !isCellEmpty(board, m.p2.x, m.p2.y)) continue;
                 if (same_pos(m.p1, m.p2)) continue;
 
                 int score = count_blocked_pairs_by_two_stones(m.p1, m.p2, opp_pairs);
@@ -521,8 +521,8 @@ MovePair choose_move(Board board, int stones_required) {
     for (const auto& m : moves) {
         if (chrono::steady_clock::now() >= deadline) break;
 
-        if (!is_empty(board, m.p1.x, m.p1.y)) continue;
-        if (!m.single_stone && !is_empty(board, m.p2.x, m.p2.y)) continue;
+        if (!isCellEmpty(board, m.p1.x, m.p1.y)) continue;
+        if (!m.single_stone && !isCellEmpty(board, m.p2.x, m.p2.y)) continue;
         if (!m.single_stone && same_pos(m.p1, m.p2)) continue;
 
         place_stone(board, m.p1.x, m.p1.y, 1);
@@ -551,9 +551,9 @@ MovePair choose_move(Board board, int stones_required) {
     }
 
     // 5. Validación final
-    if (best.p1.x == -1 || !is_empty(board, best.p1.x, best.p1.y)) {
+    if (best.p1.x == -1 || !isCellEmpty(board, best.p1.x, best.p1.y)) {
         for (const auto& p : candidates) {
-            if (is_empty(board, p.x, p.y)) {
+            if (isCellEmpty(board, p.x, p.y)) {
                 best.p1 = p;
                 best.single_stone = (stones_required == 1);
                 break;
@@ -562,9 +562,9 @@ MovePair choose_move(Board board, int stones_required) {
     }
 
     if (stones_required == 2) {
-        if (best.p2.x == -1 || !is_empty(board, best.p2.x, best.p2.y) || same_pos(best.p1, best.p2)) {
+        if (best.p2.x == -1 || !isCellEmpty(board, best.p2.x, best.p2.y) || same_pos(best.p1, best.p2)) {
             for (const auto& p : candidates) {
-                if (is_empty(board, p.x, p.y) && !same_pos(p, best.p1)) {
+                if (isCellEmpty(board, p.x, p.y) && !same_pos(p, best.p1)) {
                     best.p2 = p;
                     break;
                 }
@@ -615,14 +615,14 @@ void playGame(shared_ptr<Channel> channel, string teamName) {
                 MovePair best_action = choose_move(current_board, state.stones_required());
 
                 if (!in_bounds(best_action.p1.x, best_action.p1.y) ||
-                    !is_empty(current_board, best_action.p1.x, best_action.p1.y)) {
+                    !isCellEmpty(current_board, best_action.p1.x, best_action.p1.y)) {
                     cerr << "ERROR: primera piedra invalida." << endl;
                     continue;
                 }
 
                 if (state.stones_required() == 2) {
                     if (!in_bounds(best_action.p2.x, best_action.p2.y) ||
-                        !is_empty(current_board, best_action.p2.x, best_action.p2.y) ||
+                        !isCellEmpty(current_board, best_action.p2.x, best_action.p2.y) ||
                         same_pos(best_action.p1, best_action.p2)) {
                         cerr << "ERROR: segunda piedra invalida." << endl;
                         continue;

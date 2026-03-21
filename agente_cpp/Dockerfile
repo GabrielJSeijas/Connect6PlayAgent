@@ -12,18 +12,17 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copiar código fuente del agente
 COPY agente_cpp/ia_connect6.cpp .
 COPY connect6.proto .
 
-# Generar protobuf y gRPC
+RUN mkdir -p pb
+
 RUN protoc -I=. \
     --cpp_out=pb \
     --grpc_out=pb \
     --plugin=protoc-gen-grpc=/usr/bin/grpc_cpp_plugin \
     connect6.proto
 
-# Compilar agente
 RUN g++ -std=c++17 ia_connect6.cpp \
     pb/connect6.pb.cc \
     pb/connect6.grpc.pb.cc \
