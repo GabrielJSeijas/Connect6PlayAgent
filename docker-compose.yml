@@ -3,6 +3,7 @@ services:
     image: lrprll/connect6-server:latest
     ports:
       - "8080:8080"
+      - "50051:50051"
     networks:
       - game-network
 
@@ -13,7 +14,7 @@ services:
     restart: always
     environment:
       - SERVER_ADDR=servidor:50051
-      - TEAM_NAME=Bot_CPP_David
+      - TEAM_NAME=Bot_CPP_AngSei
     depends_on:
       - servidor
     networks:

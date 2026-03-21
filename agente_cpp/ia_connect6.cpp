@@ -264,37 +264,59 @@ int count_blocked_pairs_by_two_stones(const Pos& a, const Pos& b, const vector<p
 // =========================
 // Evaluación
 // =========================
-
 int score_by_count(int count, bool is_mine) {
-    switch (count) {
-        case 6: return is_mine ? 1000000 : -1000000;
-        case 5: return is_mine ? 120000 : -180000;
-        case 4: return is_mine ? 12000 : -30000;
-        case 3: return is_mine ? 800 : -3000;
-        case 2: return is_mine ? 60 : -250;
-        case 1: return is_mine ? 3 : -8;
-        default: return 0;
+    if (is_mine) {
+        switch (count) {
+            case 6: return 10000000; // Ganamos
+            case 5: return 100000;
+            case 4: return 10000;
+            case 3: return 1000;
+            default: return 0;
+        }
+    } else {
+        switch (count) {
+            case 5: return -8000000; // Bloqueo de 5 es vida o muerte
+            case 4: return -4000000; // BLOQUEO DE 4: ¡ESTE ES EL CAMBIO CLAVE!
+            case 3: return -50000;   
+            case 2: return -5000;
+            default: return 0;
+        }
     }
 }
-
 int evaluate_window(Board board, int x, int y, int dx, int dy) {
     int mine = 0;
     int opp = 0;
+    int consecutive_opp = 0;
+    int max_consecutive_opp = 0;
 
     for (int i = 0; i < 6; ++i) {
         int nx = x + i * dx;
         int ny = y + i * dy;
-
         if (!in_bounds(nx, ny)) return 0;
 
-        if (board[nx][ny] == 1) mine++;
-        else if (board[nx][ny] == 2) opp++;
+        if (board[nx][ny] == 1) {
+            mine++;
+            consecutive_opp = 0;
+        } else if (board[nx][ny] == 2) {
+            opp++;
+            consecutive_opp++;
+            max_consecutive_opp = max(max_consecutive_opp, consecutive_opp);
+        } else {
+            consecutive_opp = 0;
+        }
     }
 
     if (mine > 0 && opp > 0) return 0;
-    if (mine > 0) return score_by_count(mine, true);
-    if (opp > 0) return score_by_count(opp, false);
-
+    
+    // Si el oponente tiene fichas seguidas, penalizamos MUCHO más
+    if (opp > 0) {
+       return score_by_count(max_consecutive_opp, false);
+    }
+    
+    if (mine > 0) {
+        // Opcional: podrías hacer lo mismo para mios si quieres ser más agresivo atacando
+        return score_by_count(mine, true);
+    }
     return 0;
 }
 
@@ -406,170 +428,123 @@ int alphabeta(Board board,
 // Resolver jugada
 // =========================
 
+vector<Pos> find_threats(Board board, int who, int stones_needed_to_win) {
+    vector<Pos> threats;
+    auto candidates = get_candidates(board);
+    for (const auto& p : candidates) {
+        if (!isCellEmpty(board, p.x, p.y)) continue;
+        
+        place_stone(board, p.x, p.y, who);
+        // Si al poner esta ficha, el oponente queda a 1 de ganar (tiene 5), es una amenaza
+        bool is_threat = false;
+        
+        const int dirs[4][2] = {{1, 0}, {0, 1}, {1, 1}, {1, -1}};
+        for (auto& d : dirs) {
+            int total = 1 + count_dir(board, p.x, p.y, d[0], d[1], who) 
+                          + count_dir(board, p.x, p.y, -d[0], -d[1], who);
+            if (total >= (6 - stones_needed_to_win + 1)) { 
+                is_threat = true; 
+                break; 
+            }
+        }
+        
+        remove_stone(board, p.x, p.y);
+        if (is_threat) threats.push_back(p);
+    }
+    return threats;
+}
+
 MovePair choose_move(Board board, int stones_required) {
     MovePair best;
     best.single_stone = (stones_required == 1);
 
+    // 1. Iniciar semilla para que no sea repetitivo
+    static bool seeded = false;
+    if (!seeded) { srand(time(NULL)); seeded = true; }
+
     auto candidates = get_candidates(board);
 
     if (candidates.empty()) {
-        best.p1 = {9, 9};
-        best.p2 = {10, 9};
-        return best;
+        return {{9, 9}, {10, 9}, stones_required == 1};
+    }
+    // BLOQUEO DINÁMICO
+    // Primero: ¿El rival tiene 5? (Gana con 1 ficha)
+    auto emergency = find_threats(board, 2, 1); 
+    if (!emergency.empty()) {
+        if (stones_required == 1) return {emergency[0], {-1, -1}, true};
+        Pos p2 = (emergency.size() > 1) ? emergency[1] : candidates[0];
+        return {emergency[0], p2, false};
     }
 
-    // 1. Si gano ya, gano
+    // Segundo: ¿El rival tiene 4? (Gana con sus 2 fichas de su turno)
+    auto threats_4 = find_threats(board, 2, 2);
+    if (!threats_4.empty()) {
+        // Si detectamos 4 del rival, usamos nuestras fichas para estorbar ahí mismo
+        if (stones_required == 1) return {threats_4[0], {-1, -1}, true};
+        Pos p1 = threats_4[0];
+        Pos p2 = (threats_4.size() > 1) ? threats_4[1] : candidates[0];
+        return {p1, p2, false};
+    }
+
+    // 2. TÁCTICA INMEDIATA: Si gano en este turno, gano.
     if (stones_required == 1) {
         auto my_wins = find_immediate_winning_cells(board, candidates, 1);
-        if (!my_wins.empty()) {
-            return {my_wins[0], {-1, -1}, true};
-        }
+        if (!my_wins.empty()) return {my_wins[0], {-1, -1}, true};
     } else {
         auto my_pairs = find_immediate_winning_pairs(board, candidates, 1, 14);
-        if (!my_pairs.empty()) {
-            return {my_pairs[0].first, my_pairs[0].second, false};
-        }
+        if (!my_pairs.empty()) return {my_pairs[0].first, my_pairs[0].second, false};
     }
 
-    // 2. Si el rival gana con 1 piedra, bloquear
+    // 3. BLOQUEO CRÍTICO: Si el rival gana con 1 o 2 fichas, BLOQUEAR YA.
+    // Esto es lo que evita que te deje ganar en horizontales o diagonales.
     auto opp_wins = find_immediate_winning_cells(board, candidates, 2);
     if (!opp_wins.empty()) {
         if (stones_required == 1) {
             return {opp_wins[0], {-1, -1}, true};
         } else {
+            // Si requiere 2 piedras, ponemos una donde él ganaría y la otra para estorbar
             Pos p1 = opp_wins[0];
-            Pos p2 = {-1, -1};
-
-            if (opp_wins.size() >= 2) {
-                p2 = opp_wins[1];
-                return {p1, p2, false};
-            }
-
-            auto opp_pairs = find_immediate_winning_pairs(board, candidates, 2, 14);
-            int best_score = -1;
-            Pos best_second = {-1, -1};
-
-            for (const auto& p : candidates) {
-                if (!isCellEmpty(board, p.x, p.y)) continue;
-                if (same_pos(p, p1)) continue;
-
-                int score = count_blocked_pairs_by_two_stones(p1, p, opp_pairs);
-                if (score > best_score) {
-                    best_score = score;
-                    best_second = p;
-                }
-            }
-
-            if (best_second.x == -1) {
-                for (const auto& p : candidates) {
-                    if (!isCellEmpty(board, p.x, p.y)) continue;
-                    if (!same_pos(p, p1)) {
-                        best_second = p;
-                        break;
-                    }
-                }
-            }
-
-            return {p1, best_second, false};
+            Pos p2 = (opp_wins.size() > 1) ? opp_wins[1] : candidates[0];
+            if (same_pos(p1, p2)) p2 = candidates[1];
+            return {p1, p2, false};
         }
     }
 
-    // 3. Si el rival gana con 2 piedras, intentar bloquear pares
-    auto opp_pairs = find_immediate_winning_pairs(board, candidates, 2, 14);
-    if (!opp_pairs.empty()) {
-        if (stones_required == 1) {
-            int best_score = -1;
-            Pos best_block = candidates[0];
-
-            for (const auto& p : candidates) {
-                if (!isCellEmpty(board, p.x, p.y)) continue;
-
-                int score = count_blocked_pairs_by_one_stone(p, opp_pairs);
-                if (score > best_score) {
-                    best_score = score;
-                    best_block = p;
-                }
-            }
-
-            return {best_block, {-1, -1}, true};
-        } else {
-            int best_score = -1;
-            MovePair best_block;
-
-            auto combos = generate_move_combinations(candidates, 2, 14);
-            for (const auto& m : combos) {
-                if (!isCellEmpty(board, m.p1.x, m.p1.y) || !isCellEmpty(board, m.p2.x, m.p2.y)) continue;
-                if (same_pos(m.p1, m.p2)) continue;
-
-                int score = count_blocked_pairs_by_two_stones(m.p1, m.p2, opp_pairs);
-                if (score > best_score) {
-                    best_score = score;
-                    best_block = m;
-                }
-            }
-
-            if (best_score > 0) return best_block;
-        }
-    }
-
-    // 4. Si no hay táctica inmediata, alpha-beta corto
+    // 4. ALPHA-BETA CON ALEATORIEDAD (Para no ser repetitivo)
     auto deadline = chrono::steady_clock::now() + chrono::milliseconds(7000);
-    int best_eval = -1000000000;
+    int best_eval = -2000000000;
+    vector<MovePair> equal_best_moves; // Lista para guardar jugadas igual de buenas
 
-    auto moves = generate_move_combinations(candidates, stones_required, stones_required == 1 ? 16 : 12);
+    auto moves = generate_move_combinations(candidates, stones_required, 12);
 
     for (const auto& m : moves) {
         if (chrono::steady_clock::now() >= deadline) break;
-
         if (!isCellEmpty(board, m.p1.x, m.p1.y)) continue;
-        if (!m.single_stone && !isCellEmpty(board, m.p2.x, m.p2.y)) continue;
-        if (!m.single_stone && same_pos(m.p1, m.p2)) continue;
 
         place_stone(board, m.p1.x, m.p1.y, 1);
         if (!m.single_stone) place_stone(board, m.p2.x, m.p2.y, 1);
 
-        int eval;
-        if (has_win(board, 1)) {
-            eval = 100000000;
-        } else {
-            eval = alphabeta(board,
-                             stones_required == 1 ? 2 : 1,
-                             -1000000000,
-                             1000000000,
-                             false,
-                             2,
-                             deadline);
-        }
+        // Llamamos a Alpha-Beta para ver qué tan buena es esta rama
+        int eval = alphabeta(board, 1, -1000000000, 1000000000, false, 2, deadline);
 
         remove_stone(board, m.p1.x, m.p1.y);
         if (!m.single_stone) remove_stone(board, m.p2.x, m.p2.y);
 
         if (eval > best_eval) {
             best_eval = eval;
-            best = m;
+            equal_best_moves.clear();
+            equal_best_moves.push_back(m);
+        } else if (eval == best_eval) {
+            equal_best_moves.push_back(m);
         }
     }
 
-    // 5. Validación final
-    if (best.p1.x == -1 || !isCellEmpty(board, best.p1.x, best.p1.y)) {
-        for (const auto& p : candidates) {
-            if (isCellEmpty(board, p.x, p.y)) {
-                best.p1 = p;
-                best.single_stone = (stones_required == 1);
-                break;
-            }
-        }
-    }
-
-    if (stones_required == 2) {
-        if (best.p2.x == -1 || !isCellEmpty(board, best.p2.x, best.p2.y) || same_pos(best.p1, best.p2)) {
-            for (const auto& p : candidates) {
-                if (isCellEmpty(board, p.x, p.y) && !same_pos(p, best.p1)) {
-                    best.p2 = p;
-                    break;
-                }
-            }
-        }
+    // 5. ELECCIÓN FINAL: Elige una de las mejores opciones al azar
+    if (!equal_best_moves.empty()) {
+        best = equal_best_moves[rand() % equal_best_moves.size()];
+    } else {
+        best.p1 = candidates[0];
+        if (!best.single_stone) best.p2 = candidates[1];
     }
 
     return best;
