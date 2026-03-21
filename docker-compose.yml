@@ -1,5 +1,4 @@
 services:
-  # El servidor oficial de la arena
   servidor:
     image: lrprll/connect6-server:latest
     ports:
@@ -7,12 +6,23 @@ services:
     networks:
       - game-network
 
-  # Tu agente de C++
-  mi-ia:
-    build: .
+  ia-main:
+    build: ./agente_cpp
+    restart: always
     environment:
       - SERVER_ADDR=servidor:50051
-      - TEAM_NAME=Gabriel_USB_Bot
+      - TEAM_NAME=Bot_CPP_David
+    depends_on:
+      - servidor
+    networks:
+      - game-network
+
+  ia-worse:
+    build: ./agente_cpp_worse
+    restart: always
+    environment:
+      - SERVER_ADDR=servidor:50051
+      - TEAM_NAME=Bot_CPP_Worse
     depends_on:
       - servidor
     networks:
