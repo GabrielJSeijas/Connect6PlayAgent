@@ -5,23 +5,13 @@ RUN apt-get update && apt-get install -y \
     g++ \
     libgrpc++-dev \
     libprotobuf-dev \
-    protobuf-compiler \
-    protobuf-compiler-grpc \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY agente_cpp/ia_connect6.cpp .
-COPY connect6.proto .
-
-RUN mkdir -p pb
-
-RUN protoc -I=. \
-    --cpp_out=pb \
-    --grpc_out=pb \
-    --plugin=protoc-gen-grpc=/usr/bin/grpc_cpp_plugin \
-    connect6.proto
+COPY agente_cpp/pb/ ./pb/
 
 RUN g++ -std=c++17 ia_connect6.cpp \
     pb/connect6.pb.cc \

@@ -1,8 +1,0 @@
-build/
-.vscode/
-bin/
-*.o
-*.pb.cc
-*.pb.h
-*.grpc.pb.cc
-*.grpc.pb.h
