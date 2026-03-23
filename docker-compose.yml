@@ -7,7 +7,7 @@ services:
     networks:
       - game-network
 
-  ia-main:
+  ia-angsei:
     build: 
       context: .
       dockerfile: agente_cpp/Dockerfile

@@ -1,4 +1,3 @@
-#error "ESTE ES EL ARCHIVO ANGSEI"
 #include <grpcpp/grpcpp.h>
 #include "pb/connect6.grpc.pb.h"
 
@@ -328,13 +327,13 @@ TurnMove chooseMove(Grid grid, int stonesToPlace) {
         TurnMove candidate = searchOneDepth(grid, depth, stonesToPlace, timer);
 
         if (timer.expired()) {
-            std::cout << "Tiempo agotado. Se usa la mejor jugada de la profundidad previa.\n";
+            std::cout << "Poco tiempo. Usando best play de la profundidad anterior.\n";
             break;
         }
 
         best = candidate;
         hasCompletedDepth = true;
-        std::cout << "Profundidad " << depth << " completada.\n";
+        std::cout << "Listo profundidad" << depth << "papá.\n";
     }
 
     if (!hasCompletedDepth) {
@@ -387,18 +386,18 @@ void runMatch(std::shared_ptr<Channel> channel, const std::string& teamName) {
     PlayerAction registration;
     registration.set_register_team(teamName);
 
-    std::cout << "Registrando equipo: " << teamName << "\n";
+    std::cout << "Registrando equipo: " << teamName << std::endl;
     stream->Write(registration);
 
     GameState state;
     while (stream->Read(&state)) {
         if (state.status() == connect6::GameState_Status_WAITING) {
-            std::cout << "Esperando víctima...\n";
+            std::cout << "Esperando víctima..." << std::endl;
             continue;
         }
 
         if (state.status() == connect6::GameState_Status_FINISHED) {
-            std::cout << "Partida finalizada. Ganador: " << state.winner() << "\n";
+            std::cout << "Partida finalizada. Ganador: " << state.winner() << std::endl;
             break;
         }
 
@@ -407,11 +406,12 @@ void runMatch(std::shared_ptr<Channel> channel, const std::string& teamName) {
         }
 
         if (!state.is_my_turn()) {
-            std::cout << "Zzz...\n";
+            std::cout << "Zzz..." << std::endl;
             continue;
         }
 
-        std::cout << "Juega la bestia. Piedras requeridas: " << state.stones_required() << "\n";
+        std::cout << "Juega la bestia. Piedras requeridas: "
+                  << state.stones_required() << std::endl;
 
         Grid grid{};
         loadBoardFromState(state, grid);
@@ -421,23 +421,23 @@ void runMatch(std::shared_ptr<Channel> channel, const std::string& teamName) {
     }
 }
 
-} 
+} // namespace
 
 int main() {
     std::srand(static_cast<unsigned>(std::time(nullptr)));
+    std::cout.setf(std::ios::unitbuf);
 
     const char* envAddr = std::getenv("SERVER_ADDR");
-    const char* envTeam = std::getenv("TEAM_NAME");
 
     std::string server = envAddr ? envAddr : "servidor:50051";
     std::string team = "Bot_CPP_AngSei";
 
     while (true) {
-        std::cout << "Conectando a " << server << " como " << team << "...\n";
+        std::cout << "Conectando a " << server << " como " << team << "..." << std::endl;
         auto channel = grpc::CreateChannel(server, grpc::InsecureChannelCredentials());
         runMatch(channel, team);
 
-        std::cout << "Reconectando en 3 segundos...\n";
+        std::cout << "Reconectando en 3 segundos..." << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(3));
     }
 
