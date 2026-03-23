@@ -23,27 +23,32 @@ using connect6::PlayerAction;
 
 namespace {
 
-constexpr int N = 19;
-constexpr int EMPTY = 0;
-constexpr int SELF  = 1;
-constexpr int ENEMY = 2;
+// Constantes del juego
+constexpr int N = 19;         // Tamaño del tablero (19x19)
+constexpr int EMPTY = 0;      // Celda vacía
+constexpr int SELF  = 1;      // Piedra propia
+constexpr int ENEMY = 2;      // Piedra enemiga
 
-constexpr int INF_POS = 1000000000;
-constexpr int INF_NEG = -1000000000;
+constexpr int INF_POS = 1000000000; // Valor positivo infinito (para búsqueda)
+constexpr int INF_NEG = -1000000000;// Valor negativo infinito
 
+// Estructura para una celda del tablero
 struct Cell {
     int r = -1;
     int c = -1;
 };
 
+// Estructura para un movimiento (puede ser una o dos piedras)
 struct TurnMove {
     Cell a;
     Cell b;
     bool oneStone = false;
 };
 
+// Definición del tablero como una matriz de N x N
 using Grid = std::array<std::array<int8_t, N>, N>;
 
+// Clase para controlar el tiempo disponible para pensar
 class TimeBudget {
 public:
     explicit TimeBudget(int milliseconds)
@@ -57,10 +62,12 @@ private:
     std::chrono::steady_clock::time_point deadline_;
 };
 
+// Verifica si una celda está dentro del tablero
 inline bool inside(int r, int c) {
     return r >= 0 && r < N && c >= 0 && c < N;
 }
 
+// Carga el tablero desde el estado recibido del servidor
 void loadBoardFromState(const GameState& state, Grid& grid) {
     for (int r = 0; r < N; ++r) {
         const auto& row = state.board(r);
@@ -77,6 +84,7 @@ void loadBoardFromState(const GameState& state, Grid& grid) {
     }
 }
 
+// Verifica si hay alguna piedra en el tablero
 bool boardHasAnyStone(const Grid& grid) {
     for (int r = 0; r < N; ++r) {
         for (int c = 0; c < N; ++c) {
@@ -86,10 +94,12 @@ bool boardHasAnyStone(const Grid& grid) {
     return false;
 }
 
+// Recolecta las celdas vacías cercanas a piedras existentes (para limitar opciones)
 std::vector<Cell> collectNearbyOptions(const Grid& grid) {
     std::vector<Cell> result;
     bool seen[N][N] = {};
 
+    // Si el tablero está vacío, elige el centro
     if (!boardHasAnyStone(grid)) {
         for (int r = 8; r <= 10; ++r) {
             for (int c = 8; c <= 10; ++c) {
@@ -99,6 +109,7 @@ std::vector<Cell> collectNearbyOptions(const Grid& grid) {
         return result;
     }
 
+    // Busca celdas vacías cerca de piedras ya puestas
     for (int r = 0; r < N; ++r) {
         for (int c = 0; c < N; ++c) {
             if (grid[r][c] == EMPTY) continue;
@@ -122,6 +133,7 @@ std::vector<Cell> collectNearbyOptions(const Grid& grid) {
     return result;
 }
 
+// Genera todos los movimientos posibles (una o dos piedras)
 std::vector<TurnMove> buildMoves(const std::vector<Cell>& options, int stonesToPlace) {
     std::vector<TurnMove> moves;
 
@@ -145,14 +157,17 @@ std::vector<TurnMove> buildMoves(const std::vector<Cell>& options, int stonesToP
     return moves;
 }
 
+// Coloca una piedra en el tablero
 inline void putStone(Grid& grid, const Cell& p, int who) {
     grid[p.r][p.c] = static_cast<int8_t>(who);
 }
 
+// Quita una piedra del tablero
 inline void removeStone(Grid& grid, const Cell& p) {
     grid[p.r][p.c] = EMPTY;
 }
 
+// Aplica un movimiento al tablero
 void applyMove(Grid& grid, const TurnMove& mv, int who) {
     putStone(grid, mv.a, who);
     if (!mv.oneStone) {
@@ -160,6 +175,7 @@ void applyMove(Grid& grid, const TurnMove& mv, int who) {
     }
 }
 
+// Deshace un movimiento en el tablero
 void undoMove(Grid& grid, const TurnMove& mv) {
     removeStone(grid, mv.a);
     if (!mv.oneStone) {
@@ -167,6 +183,7 @@ void undoMove(Grid& grid, const TurnMove& mv) {
     }
 }
 
+// Asigna un valor a una línea de 6 celdas según cuántas piedras hay
 int lineValueByCount(int count, bool mine) {
     if (mine) {
         switch (count) {
@@ -189,6 +206,7 @@ int lineValueByCount(int count, bool mine) {
     }
 }
 
+// Evalúa una ventana de 6 celdas en una dirección
 int scoreWindow6(const Grid& grid, int r, int c, int dr, int dc) {
     int mine = 0;
     int opp = 0;
@@ -203,12 +221,13 @@ int scoreWindow6(const Grid& grid, int r, int c, int dr, int dc) {
         else if (grid[nr][nc] == ENEMY) ++opp;
     }
 
-    if (mine > 0 && opp > 0) return 0;
+    if (mine > 0 && opp > 0) return 0; // Línea bloqueada
     if (mine > 0) return lineValueByCount(mine, true);
     if (opp > 0) return lineValueByCount(opp, false);
     return 0;
 }
 
+// Evalúa el tablero sumando el valor de todas las líneas posibles
 int staticEval(const Grid& grid) {
     static const int dirs[4][2] = {
         {1, 0},   // vertical
@@ -230,6 +249,7 @@ int staticEval(const Grid& grid) {
     return total;
 }
 
+// Algoritmo de búsqueda minimax con poda alfa-beta
 int alphabeta(
     Grid& grid,
     int depth,
@@ -240,10 +260,12 @@ int alphabeta(
     const TimeBudget& timer
 ) {
     if (timer.expired()) {
+        // Si se acaba el tiempo, retorna un valor de emergencia
         return maximizing ? INF_NEG / 2 : INF_POS / 2;
     }
 
     if (depth == 0) {
+        // Si se llega a la profundidad máxima, evalúa el tablero
         return staticEval(grid);
     }
 
@@ -264,7 +286,7 @@ int alphabeta(
 
             if (value > best) best = value;
             if (value > alpha) alpha = value;
-            if (beta <= alpha) break;
+            if (beta <= alpha) break; // Poda beta
             if (timer.expired()) break;
         }
 
@@ -280,13 +302,14 @@ int alphabeta(
 
         if (value < best) best = value;
         if (value < beta) beta = value;
-        if (beta <= alpha) break;
+        if (beta <= alpha) break; // Poda alfa
         if (timer.expired()) break;
     }
 
     return best;
 }
 
+// Busca el mejor movimiento en una profundidad dada
 TurnMove searchOneDepth(Grid& grid, int depth, int stonesToPlace, const TimeBudget& timer) {
     auto options = collectNearbyOptions(grid);
     auto moves = buildMoves(options, stonesToPlace);
@@ -295,6 +318,7 @@ TurnMove searchOneDepth(Grid& grid, int depth, int stonesToPlace, const TimeBudg
     int bestScore = INF_NEG;
 
     if (moves.empty()) {
+        // Si no hay movimientos, elige el centro
         bestMove.oneStone = (stonesToPlace == 1);
         bestMove.a = {9, 9};
         bestMove.b = {9, 10};
@@ -317,12 +341,14 @@ TurnMove searchOneDepth(Grid& grid, int depth, int stonesToPlace, const TimeBudg
     return bestMove;
 }
 
+// Realiza búsqueda iterativa para elegir el mejor movimiento
 TurnMove chooseMove(Grid grid, int stonesToPlace) {
-    TimeBudget timer(8000);
+    TimeBudget timer(8000); // 8 segundos de tiempo máximo
 
     TurnMove best{};
     bool hasCompletedDepth = false;
 
+    // Búsqueda iterativa por profundidad
     for (int depth = 1; depth <= 100; ++depth) {
         TurnMove candidate = searchOneDepth(grid, depth, stonesToPlace, timer);
 
@@ -336,6 +362,7 @@ TurnMove chooseMove(Grid grid, int stonesToPlace) {
         std::cout << "Listo profundidad" << depth << "papá.\n";
     }
 
+    // Si no se pudo buscar, elige el primer movimiento posible
     if (!hasCompletedDepth) {
         auto options = collectNearbyOptions(grid);
         auto moves = buildMoves(options, stonesToPlace);
@@ -350,6 +377,7 @@ TurnMove chooseMove(Grid grid, int stonesToPlace) {
     return best;
 }
 
+// Envía el movimiento elegido al servidor
 void sendMove(
     const TurnMove& mv,
     int stonesToPlace,
@@ -377,6 +405,7 @@ void sendMove(
     std::cout << "\n";
 }
 
+// Lógica principal para jugar una partida contra el servidor
 void runMatch(std::shared_ptr<Channel> channel, const std::string& teamName) {
     auto stub = GameServer::NewStub(channel);
     ClientContext context;
@@ -432,6 +461,7 @@ int main() {
     std::string server = envAddr ? envAddr : "servidor:50051";
     std::string team = "Bot_CPP_AngSei";
 
+    // Ciclo principal: reconecta si se pierde la conexión
     while (true) {
         std::cout << "Conectando a " << server << " como " << team << "..." << std::endl;
         auto channel = grpc::CreateChannel(server, grpc::InsecureChannelCredentials());
